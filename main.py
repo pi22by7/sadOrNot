@@ -28,8 +28,8 @@ input_text = input("Enter a text: ")
 input_features = vectorizer.transform([input_text])
 prediction = model.predict(input_features)
 label = prediction[0]
-print(prediction)
-print(label)
+# print(prediction)
+# print(label)
 confidence = model.predict_proba(input_features)
 
 print("The text is classified as:", "sad" if label == 1 else "not sad")
