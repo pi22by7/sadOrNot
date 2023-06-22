@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 import csv
 
 # Define the URL to scrape
-url = "https://twitter.com/search?q=depression"
+url = "https://bookroo.com/quotes/satisfaction"
 
 # Send a GET request to the URL
 response = requests.get(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, "
@@ -14,7 +14,7 @@ print(response)
 soup = BeautifulSoup(response.content, "html.parser")
 
 # Find the sad text elements in the HTML
-sad_text_elements = soup.find_all("div", class_="css-901oao")
+sad_text_elements = soup.find_all("div", class_="css-eez2cp")
 print(sad_text_elements)
 sad_texts = [element.text for element in sad_text_elements]
 
@@ -24,4 +24,4 @@ with open("sad_texts.csv", "a", encoding='utf-8') as f:
     # writer.writerow(["text", "label"])
     writer.writerow([])
     for text in sad_texts:
-        writer.writerow([text, 1])
+        writer.writerow([text, 0])
