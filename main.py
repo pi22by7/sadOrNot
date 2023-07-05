@@ -1,5 +1,7 @@
 import csv
 import re
+import joblib
+import os
 import nltk
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
@@ -71,30 +73,37 @@ def train_model():
     x_test_sequences = tokenizer.texts_to_sequences(x_test)
     x_test_padded = pad_sequences(x_test_sequences, maxlen=max_sequence_length, padding='post')
 
-    # Create the neural network model
-    model = Sequential()
-    model.add(Embedding(len(tokenizer.word_index) + 1, 128, input_length=max_sequence_length))
-    model.add(LSTM(128))
-    model.add(Dense(1, activation='sigmoid'))
+    if not os.path.exists("trained_model.joblib"):
+        # Create the neural network model
+        model = Sequential()
+        model.add(Embedding(len(tokenizer.word_index) + 1, 128, input_length=max_sequence_length))
+        model.add(LSTM(128))
+        model.add(Dense(1, activation='sigmoid'))
 
-    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+        model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
 
-    # Train the model
-    model.fit(x_train_padded, y_train, validation_data=(x_test_padded, y_test), epochs=10, batch_size=32)
+        # Train the model
+        model.fit(x_train_padded, y_train, validation_data=(x_test_padded, y_test), epochs=10, batch_size=32)
+        joblib.dump(model, "trained_model.joblib")
 
+    model = joblib.load("trained_model.joblib")
     return model, tokenizer, x_test, y_test, df
 
 
-def predict_sentiment(model, vectorizer, input_text):
+def predict_sentiment(model, tokenizer, input_text):
     # Pre-process the input text
     input_text = preprocess_text(input_text)
 
-    # Vectorize the input text
-    input_features = vectorizer.transform([input_text])
+    # Convert the input text to a sequence using the tokenizer
+    input_sequence = tokenizer.texts_to_sequences([input_text])
+
+    # Pad the input sequence
+    max_sequence_length = model.input_shape[1]
+    input_padded = pad_sequences(input_sequence, maxlen=max_sequence_length, padding='post')
 
     # Make a prediction
-    label = model.predict(input_features)[0]
-    confidence = model.predict_proba(input_features)[0]
+    confidence = model.predict(input_padded)[0]
+    label = int(confidence >= 0.5)  # Set a threshold for classification
 
     return label, confidence
 
@@ -108,11 +117,14 @@ def update_dataset(input_text, label):
 
 
 def plot_class_distribution(df):
-    class_counts = df['label'].value_counts()
-    plt.bar(['Sad', 'Not Sad'], class_counts)
+    class_labels = [0, 1]  # Update class labels based on your dataset
+    class_counts = df['label'].value_counts().loc[class_labels]
+
+    plt.bar(class_labels, class_counts)
     plt.title('Distribution of Training Dataset Classes')
     plt.xlabel('Emotion')
     plt.ylabel('Count')
+    plt.xticks(class_labels, ['Not Sad', 'Sad'])  # Update labels if needed
     plt.show()
 
 
@@ -157,7 +169,8 @@ def main():
 
     # Print the results
     print("The text is classified as:", "sad" if label == 1 else "not sad")
-    print("Confidence:", confidence[1] if confidence[1] > confidence[0] else confidence[0])
+    confidence_label = confidence[0] if len(confidence) > 1 else confidence
+    print("Confidence:", confidence_label)
 
     # Ask for user feedback and update the dataset
     update_dataset(input_text, label)
