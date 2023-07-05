@@ -3,9 +3,12 @@ import re
 import nltk
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.naive_bayes import MultinomialNB
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Embedding, LSTM
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
 import pandas as pd
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
@@ -44,7 +47,8 @@ def train_model():
     df = pd.read_csv("sad_texts.csv", header=None, names=['text', 'label'])
 
     # Convert label column to numeric values
-    df['label'] = pd.to_numeric(df['label'], errors='coerce')
+    label_encoder = LabelEncoder()
+    df['label'] = label_encoder.fit_transform(df['label'])
 
     # Remove rows with missing label values
     df = df.dropna(subset=['label'])
@@ -55,15 +59,30 @@ def train_model():
     # Split data into training and testing sets
     x_train, x_test, y_train, y_test = train_test_split(df['text'], df['label'], test_size=0.2)
 
-    # Vectorize the text data
-    vectorizer = CountVectorizer()
-    x_train_vectorized = vectorizer.fit_transform(x_train)
+    # Tokenize the text
+    tokenizer = Tokenizer()
+    tokenizer.fit_on_texts(x_train)
 
-    # Train the Naive Bayes classifier
-    model = MultinomialNB()
-    model.fit(x_train_vectorized, y_train)
+    # Convert text sequences to padded sequences
+    max_sequence_length = max([len(text.split()) for text in x_train])
+    x_train_sequences = tokenizer.texts_to_sequences(x_train)
+    x_train_padded = pad_sequences(x_train_sequences, maxlen=max_sequence_length, padding='post')
 
-    return model, vectorizer, x_test, y_test, df
+    x_test_sequences = tokenizer.texts_to_sequences(x_test)
+    x_test_padded = pad_sequences(x_test_sequences, maxlen=max_sequence_length, padding='post')
+
+    # Create the neural network model
+    model = Sequential()
+    model.add(Embedding(len(tokenizer.word_index) + 1, 128, input_length=max_sequence_length))
+    model.add(LSTM(128))
+    model.add(Dense(1, activation='sigmoid'))
+
+    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+    # Train the model
+    model.fit(x_train_padded, y_train, validation_data=(x_test_padded, y_test), epochs=10, batch_size=32)
+
+    return model, tokenizer, x_test, y_test, df
 
 
 def predict_sentiment(model, vectorizer, input_text):
